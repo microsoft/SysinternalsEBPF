@@ -24,7 +24,7 @@ sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang lib
 ## Build
 ```
 cd
-git clone https://github.com/Sysinternals/SysinternalsEBPF.git
+git clone https://github.com/Microsoft/SysinternalsEBPF.git
 cd SysinternalsEBPF
 mkdir build
 cd build
