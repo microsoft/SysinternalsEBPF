@@ -1,4 +1,4 @@
-# SysinternalsEBPF [![Build Status](https://dev.azure.com/sysinternals/Tools/_apis/build/status/Sysinternals.SysinternalsEBPF?repoName=Sysinternals%2FSysinternalsEBPF&branchName=main)](https://dev.azure.com/sysinternals/Tools/_build/latest?definitionId=337&repoName=Sysinternals%2FSysinternalsEBPF&branchName=main)
+# Test CI SysinternalsEBPF [![Build Status](https://dev.azure.com/sysinternals/Tools/_apis/build/status/Sysinternals.SysinternalsEBPF?repoName=Sysinternals%2FSysinternalsEBPF&branchName=main)](https://dev.azure.com/sysinternals/Tools/_build/latest?definitionId=337&repoName=Sysinternals%2FSysinternalsEBPF&branchName=main)
 
 ## Build
 Please see build instructions [here](BUILD.md).
