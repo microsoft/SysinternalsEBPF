@@ -14,9 +14,9 @@ pr:
 stages:
  - stage: "Build"
    jobs:
-    - job: "Build_Sysinternalsebpf_Ubuntu_20_04_Package"
+    - job: "Build_Sysinternalsebpf_Ubuntu_22_04_Package"
       pool:
-        vmImage: "ubuntu-20.04"
+        vmImage: "ubuntu-22.04"
       steps:
       - checkout: self
         persistCredentials: true
