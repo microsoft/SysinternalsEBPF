@@ -410,8 +410,7 @@ if (DEBUG_K)
 endif()
 
 set(CLANG_INCLUDES
-                   -I "/usr/include"
-                   -I "/usr/include/x86_64-linux-gnu"
+                    -I "${CMAKE_SOURCE_DIR}/gnu"
                    -I "${CMAKE_SOURCE_DIR}"
                    -I "${CMAKE_BINARY_DIR}"
                    -I "${libbpf_SOURCE_DIR}/src"
@@ -427,7 +426,7 @@ set(CLANG_INCLUDES
 function(build_ebpf ebpfsrc)
     add_custom_command(TARGET sysinternalsEBPF
                        PRE_BUILD
-                       COMMAND "${CLANG}" -nostdinc -isystem `gcc -print-file-name=include` ${CLANG_INCLUDES} ${CLANG_DEFINES} -O2 ${CLANG_OPTIONS} -target bpf -c "${CMAKE_SOURCE_DIR}/ebpfKern/${ebpfsrc}.c" -o "${ebpfsrc}.o"
+                       COMMAND "${CLANG}" -nostdinc ${CLANG_INCLUDES} -isystem "/usr/include" -isystem "/usr/include/x86_64-linux-gnu" -isystem `gcc -print-file-name=include`  ${CLANG_DEFINES} -O2 ${CLANG_OPTIONS} -target bpf -c "${CMAKE_SOURCE_DIR}/ebpfKern/${ebpfsrc}.c" -o "${ebpfsrc}.o"
                        COMMENT "Building EBPF object ${ebpfsrc}.o"
                        DEPENDS ebpfKern/${ebpfsrc}.c ${EBPF_DEPENDS}
                        )
