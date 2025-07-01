@@ -8,17 +8,17 @@ Please see the history of this file for instructions for older, unsupported vers
 ### Ubuntu
 ```
 sudo apt update
-sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang libzstd1 git libjson-glib-dev libc6-dev-i386
+sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang libzstd1 git libjson-glib-dev
 ```
 
 ### Rocky Linux
 ```
-sudo yum install gcc gcc-c++ make cmake llvm clang elfutils-libelf-devel rpm-build json-glib-devel python3 glibc-devel.i686
+sudo yum install gcc gcc-c++ make cmake llvm clang elfutils-libelf-devel rpm-build json-glib-devel python3
 ```
 
 ### Debian
 ```
-sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang libzstd1 git libjson-glib-dev libc6-dev-i386
+sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang libzstd1 git libjson-glib-dev
 ```
 
 ## Build
