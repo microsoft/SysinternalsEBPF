@@ -4,6 +4,10 @@ Please see the history of this file for instructions for older, unsupported vers
 ## Prerequisites
 - clang/llvm v10+
 
+### Azure Linux
+```
+sudo dnf install gcc gcc-c++ make cmake llvm clang elfutils-libelf-devel rpm-build json-glib-devel python3
+```
 
 ### Ubuntu
 ```
