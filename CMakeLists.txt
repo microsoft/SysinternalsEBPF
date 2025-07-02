@@ -74,14 +74,28 @@ set(PACKAGE_NAME "sysinternalsebpf")
 #
 set(SYSEBPF_COMPRESS_MAN "sysinternalsebpf.3.gz")
 
+execute_process(
+    COMMAND date "+%d %b %Y"
+    OUTPUT_VARIABLE BUILD_DATE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+string(TIMESTAMP COPYRIGHT_YEAR "%Y")
+
+configure_file(
+    "${CMAKE_SOURCE_DIR}/package/usr/share/man/man3/sysinternalsebpf_template.3"
+    "${PROJECT_BINARY_DIR}/sysinternalsebpf.3"
+    @ONLY
+)
+
 add_custom_target(SYSEBPF_MAN_COMPRESS ALL
                   DEPENDS ${PROJECT_BINARY_DIR}/${SYSEBPF_COMPRESS_MAN}
                   )
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${SYSEBPF_COMPRESS_MAN}
-                   COMMAND gzip -f -c "${CMAKE_SOURCE_DIR}/package/usr/share/man/man3/sysinternalsebpf.3" > ${PROJECT_BINARY_DIR}/${SYSEBPF_COMPRESS_MAN}
+                   COMMAND gzip -f -c "${PROJECT_BINARY_DIR}/sysinternalsebpf.3" > ${PROJECT_BINARY_DIR}/${SYSEBPF_COMPRESS_MAN}
                    COMMENT "Compressing SysinternalsEBPF man page"
-                   DEPENDS "${CMAKE_SOURCE_DIR}/package/usr/share/man/man3/sysinternalsebpf.3"
+                   DEPENDS "${PROJECT_BINARY_DIR}/sysinternalsebpf.3"
                   )
 
 #
