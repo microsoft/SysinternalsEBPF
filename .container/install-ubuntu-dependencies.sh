@@ -7,7 +7,7 @@ DEBIAN_FRONTEND=noninteractive
 sudo apt-get update && sudo apt-get install -y gnupg wget
 
 #install .NET and T4 text transform
-wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
 sudo dpkg -i packages-microsoft-prod.deb
 rm packages-microsoft-prod.deb
 sudo apt update
