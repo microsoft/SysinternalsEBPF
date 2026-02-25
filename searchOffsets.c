@@ -191,11 +191,12 @@ bool getKernelProcVersion(char *ver, size_t len)
     fp = fopen("/proc/version", "r");
     if (fp == NULL)
         return false;
-    if (fread(ver, 1, len, fp) == 0) {
-        fclose(fp);
+    size_t bytesRead = fread(ver, 1, len - 1, fp);
+    fclose(fp);
+    if (bytesRead == 0) {
         return false;
     }
-    fclose(fp);
+    ver[bytesRead] = '\0';
 
     i = strlen(ver) - 1;
     while (isspace(ver[i])) {
