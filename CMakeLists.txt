@@ -50,6 +50,10 @@ else()
   project(SysinternalsEBPF VERSION 0.0.0.0)
 endif()
 
+if ("${PROJECT_VERSION_TWEAK}" STREQUAL "")
+  set(PROJECT_VERSION_TWEAK 0)
+endif()
+
 configure_file(package/DEBIAN.in/control.in DEBIANcontrol)
 configure_file(package/SPECS.in/spec.in SPECS.spec)
 
