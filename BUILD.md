@@ -20,6 +20,11 @@ sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang lib
 sudo yum install gcc gcc-c++ make cmake llvm clang elfutils-libelf-devel rpm-build json-glib-devel python3
 ```
 
+### Fedora
+```
+sudo yum install gcc gcc-c++ make cmake llvm clang elfutils-libelf-devel rpm-build json-glib-devel python3
+```
+
 ### Debian
 ```
 sudo apt -y install build-essential gcc g++ make cmake libelf-dev llvm clang libzstd1 git libjson-glib-dev

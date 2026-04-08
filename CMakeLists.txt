@@ -115,7 +115,7 @@ include(ExternalProject)
 ExternalProject_Add(libbpf
     GIT_REPOSITORY https://github.com/libbpf/libbpf.git
 #    GIT_TAG master
-    GIT_TAG v1.1.0
+    GIT_TAG v1.7.0
     PREFIX ./libbpf
     CONFIGURE_COMMAND ""
     BUILD_COMMAND cd ../libbpf/src && bash -c "CFLAGS=\"-g -O2 -Werror -Wall -fPIC\" make"
@@ -157,13 +157,8 @@ target_include_directories(sysinternalsEBPF PUBLIC
                            "${PROJECT_BINARY_DIR}"
                            "${libbpf_SOURCE_DIR}/src"
                            "${libbpf_SOURCE_DIR}/include"
-                           "${libbpf_SOURCE_DIR}/include/asm"
-                           "${libbpf_SOURCE_DIR}/include/linux"
-                           "${libbpf_SOURCE_DIR}/include/tools"
                            "${libbpf_SOURCE_DIR}/include/uapi"
-                           "${libbpf_SOURCE_DIR}/include/uapi/linux"
                            "${JSONGLIB_INCLUDE_DIRS}"
-                           "/usr/include"
                            )
 
 add_executable(libsysinternalsEBPFinstaller
