@@ -39,7 +39,7 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <sys/utsname.h>
-#include <types.h>
+#include <linux/types.h>
 #include <signal.h>
 #include <time.h>
 #include <fcntl.h>
