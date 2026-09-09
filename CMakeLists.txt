@@ -54,9 +54,6 @@ if ("${PROJECT_VERSION_TWEAK}" STREQUAL "")
   set(PROJECT_VERSION_TWEAK 0)
 endif()
 
-configure_file(package/DEBIAN.in/control.in DEBIANcontrol)
-configure_file(package/SPECS.in/spec.in SPECS.spec)
-
 #
 # enable Debug while pre-release; re-enable it post-release to add symbols to binary
 #
@@ -64,9 +61,46 @@ configure_file(package/SPECS.in/spec.in SPECS.spec)
 #option(DEBUG_K "Enter debug mode" On)
 
 #
-# external programs used by this build
+# external programs used by this build - respect cross-compilation toolchain
 #
-set(LD "/usr/bin/ld")
+if(CMAKE_LINKER)
+    set(LD "${CMAKE_LINKER}")
+else()
+    set(LD "/usr/bin/ld")
+endif()
+
+include(GNUInstallDirs)
+
+#
+# Architecture detection — reject unsupported targets early
+#
+if(NOT DEFINED TARGET_ARCH)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
+        set(TARGET_ARCH "arm64")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+        set(TARGET_ARCH "x86")
+    else()
+        message(FATAL_ERROR "Unsupported target architecture: ${CMAKE_SYSTEM_PROCESSOR}")
+    endif()
+endif()
+
+message(STATUS "Target architecture: ${TARGET_ARCH}")
+
+# Derive multiarch tuple for system includes
+if(TARGET_ARCH STREQUAL "arm64")
+    set(TARGET_MULTIARCH "aarch64-linux-gnu")
+    set(DEB_ARCH "arm64")
+    set(RPM_ARCH "aarch64")
+elseif(TARGET_ARCH STREQUAL "x86")
+    set(TARGET_MULTIARCH "x86_64-linux-gnu")
+    set(DEB_ARCH "amd64")
+    set(RPM_ARCH "x86_64")
+else()
+    message(FATAL_ERROR "Unsupported TARGET_ARCH: ${TARGET_ARCH}  (expected 'x86' or 'arm64')")
+endif()
+
+configure_file(package/DEBIAN.in/control.in DEBIANcontrol)
+configure_file(package/SPECS.in/spec.in SPECS.spec)
 
 #
 # package name
@@ -112,13 +146,20 @@ include(ExternalProject)
 
 # Fetch libbpf
 # FIX this so that it clones libbpf when the project is cloned
+# Build libbpf with the correct compiler for the target architecture
+if(CMAKE_CROSSCOMPILING)
+    set(LIBBPF_BUILD_CMD "CC=${CMAKE_C_COMPILER} AR=${CMAKE_AR} RANLIB=${CMAKE_RANLIB} CFLAGS=\"-g -O2 -Werror -Wall -fPIC\" make")
+else()
+    set(LIBBPF_BUILD_CMD "CFLAGS=\"-g -O2 -Werror -Wall -fPIC\" make")
+endif()
+
 ExternalProject_Add(libbpf
     GIT_REPOSITORY https://github.com/libbpf/libbpf.git
 #    GIT_TAG master
     GIT_TAG v1.7.0
     PREFIX ./libbpf
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND cd ../libbpf/src && bash -c "CFLAGS=\"-g -O2 -Werror -Wall -fPIC\" make"
+    BUILD_COMMAND cd ../libbpf/src && bash -c "${LIBBPF_BUILD_CMD}"
     INSTALL_COMMAND ""
     )
 
@@ -187,12 +228,12 @@ add_executable(libsysinternalsEBPFinstaller
 )
 
 add_custom_target(deb
-    COMMAND "${CMAKE_SOURCE_DIR}/makePackages.sh"  "${CMAKE_SOURCE_DIR}" "${PROJECT_BINARY_DIR}" "${PACKAGE_NAME}" "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" "0" "deb"
+    COMMAND "${CMAKE_SOURCE_DIR}/makePackages.sh"  "${CMAKE_SOURCE_DIR}" "${PROJECT_BINARY_DIR}" "${PACKAGE_NAME}" "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" "0" "deb" "${DEB_ARCH}"
     DEPENDS "${CMAKE_SOURCE_DIR}/package" "${PROJECT_BINARY_DIR}/libsysinternalsEBPFinstaller"
 )
 
 add_custom_target(rpm
-    COMMAND "${CMAKE_SOURCE_DIR}/makePackages.sh"  "${CMAKE_SOURCE_DIR}" "${PROJECT_BINARY_DIR}" "${PACKAGE_NAME}" "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" "0" "rpm"
+    COMMAND "${CMAKE_SOURCE_DIR}/makePackages.sh"  "${CMAKE_SOURCE_DIR}" "${PROJECT_BINARY_DIR}" "${PACKAGE_NAME}" "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" "0" "rpm" "${RPM_ARCH}"
     DEPENDS "${CMAKE_SOURCE_DIR}/package" "${PROJECT_BINARY_DIR}/libsysinternalsEBPFinstaller"
 )
 
@@ -343,8 +384,8 @@ set_target_properties(sysinternalsEBPF PROPERTIES
     )
 
 install(TARGETS sysinternalsEBPF
-    LIBRARY DESTINATION lib ${CMAKE_INSTALL_LIBDIR}
-    PUBLIC_HEADER DESTINATION include ${CMAKE_INSTALL_INCLUDEDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     RESOURCE DESTINATION /opt/sysinternalsEBPF/
         PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
     )
@@ -402,8 +443,21 @@ add_custom_command(OUTPUT unameOffsets.c
 #
 
 # set binaries and options for clang and llc
-set(CLANG "clang")
-set(LLC "llc")
+find_program(CLANG clang)
+if(NOT CLANG)
+    message(FATAL_ERROR "clang is required to build eBPF programs")
+endif()
+find_program(LLC llc)
+
+# Derive the compiler's built-in include directory at configure time
+# so we do not backtick the host gcc at build time during cross-compilation.
+execute_process(
+    COMMAND ${CMAKE_C_COMPILER} -print-file-name=include
+    OUTPUT_VARIABLE GCC_BUILTIN_INCLUDE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+message(STATUS "GCC built-in include: ${GCC_BUILTIN_INCLUDE}")
+
 set(CLANG_OPTIONS -Wno-unused-value
                   -Wno-pointer-sign
                   -Wno-compare-distinct-pointer-types
@@ -415,7 +469,7 @@ set(CLANG_OPTIONS -Wno-unused-value
                   )
 set(CLANG_DEFINES -D __KERNEL__
                   -D __BPF_TRACING__
-                  -D __TARGET_ARCH_x86
+                  -D __TARGET_ARCH_${TARGET_ARCH}
                   )
 if (DEBUG_K)
     message("Using DEBUG_K Option...")
@@ -439,7 +493,13 @@ set(CLANG_INCLUDES
 function(build_ebpf ebpfsrc)
     add_custom_command(TARGET sysinternalsEBPF
                        PRE_BUILD
-                       COMMAND "${CLANG}" -nostdinc ${CLANG_INCLUDES} -isystem "/usr/include" -isystem "/usr/include/x86_64-linux-gnu" -isystem `gcc -print-file-name=include`  ${CLANG_DEFINES} -O2 ${CLANG_OPTIONS} -target bpf -c "${CMAKE_SOURCE_DIR}/ebpfKern/${ebpfsrc}.c" -o "${ebpfsrc}.o"
+                       COMMAND "${CLANG}" -nostdinc ${CLANG_INCLUDES}
+                           -isystem "/usr/include/${TARGET_MULTIARCH}"
+                           -isystem "/usr/include"
+                           -isystem "${GCC_BUILTIN_INCLUDE}"
+                           ${CLANG_DEFINES} -O2 ${CLANG_OPTIONS} -target bpf
+                           -c "${CMAKE_SOURCE_DIR}/ebpfKern/${ebpfsrc}.c"
+                           -o "${ebpfsrc}.o"
                        COMMENT "Building EBPF object ${ebpfsrc}.o"
                        DEPENDS ebpfKern/${ebpfsrc}.c ${EBPF_DEPENDS}
                        )
@@ -456,5 +516,3 @@ foreach(EBPF_PROG IN LISTS EBPF_PROGS)
     # add ebpf programs to clean
     set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${EBPF_PROG}.o)
 endforeach(EBPF_PROG)
-
-

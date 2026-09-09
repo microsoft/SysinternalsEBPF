@@ -980,6 +980,8 @@ bool linkTPprogs(const ebpfTelemetryObject *obj,
             // attach this to all active syscall enter tracepoints
             for (syscall=0; syscall<=SYSCALL_MAX; syscall++) {
                 if (activeSyscalls[syscall]) {
+                    if (syscallNumToName[syscall].name[0] == '\0')
+                        continue;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
                     snprintf(tp, SYSCALL_NAME_LEN * 2, "sys_enter_%s", syscallNumToName[syscall].name);
@@ -990,7 +992,9 @@ bool linkTPprogs(const ebpfTelemetryObject *obj,
                         return false;
                 }
             }
-        } else if (activeSyscalls[p->syscall]) {
+        } else if (p->syscall <= SYSCALL_MAX &&
+                activeSyscalls[p->syscall] &&
+                syscallNumToName[p->syscall].name[0] != '\0') {
             snprintf(tp, SYSCALL_NAME_LEN * 2, "sys_enter_%s", syscallNumToName[p->syscall].name);
             s->link[0] = bpf_program__attach_tracepoint(s->prog[0], "syscalls", tp);
             if (libbpf_get_error(s->link[0]))
@@ -1006,6 +1010,8 @@ bool linkTPprogs(const ebpfTelemetryObject *obj,
             // attach this to all active syscall exit tracepoints
             for (syscall=0; syscall<=SYSCALL_MAX; syscall++) {
                 if (activeSyscalls[syscall]) {
+                    if (syscallNumToName[syscall].name[0] == '\0')
+                        continue;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"
                     snprintf(tp, SYSCALL_NAME_LEN * 2, "sys_exit_%s", syscallNumToName[syscall].name);
@@ -1015,7 +1021,9 @@ bool linkTPprogs(const ebpfTelemetryObject *obj,
                         return false;
                 }
             }
-        } else if (activeSyscalls[p->syscall]) {
+        } else if (p->syscall <= SYSCALL_MAX &&
+                activeSyscalls[p->syscall] &&
+                syscallNumToName[p->syscall].name[0] != '\0') {
             snprintf(tp, SYSCALL_NAME_LEN * 2, "sys_exit_%s", syscallNumToName[p->syscall].name);
             s->link[0] = bpf_program__attach_tracepoint(s->prog[0], "syscalls", tp);
             if (libbpf_get_error(s->link[0]))
@@ -1056,7 +1064,9 @@ bool linkRTPprogs(const ebpfTelemetryObject *obj,
         if (prev != NULL && strcmp(prev, cur) != 0) {
             alreadyAttached = false;
         }
-        if ((prev == NULL || !alreadyAttached) && (p->syscall == EBPF_GENERIC_SYSCALL || activeSyscalls[p->syscall])) {
+        if ((prev == NULL || !alreadyAttached) &&
+                (p->syscall == EBPF_GENERIC_SYSCALL ||
+                 (p->syscall <= SYSCALL_MAX && activeSyscalls[p->syscall]))) {
             bpfRawSysEnterLink[i] = bpf_program__attach_raw_tracepoint(bpfRawSysEnter[i], "sys_enter");
             if (libbpf_get_error(bpfRawSysEnterLink[i])) {
                 logMessage("Cannot link\n");
@@ -1074,7 +1084,9 @@ bool linkRTPprogs(const ebpfTelemetryObject *obj,
         if (prev != NULL && strcmp(prev, cur) != 0) {
             alreadyAttached = false;
         }
-        if ((prev == NULL || !alreadyAttached) && (p->syscall == EBPF_GENERIC_SYSCALL || activeSyscalls[p->syscall])) {
+        if ((prev == NULL || !alreadyAttached) &&
+                (p->syscall == EBPF_GENERIC_SYSCALL ||
+                 (p->syscall <= SYSCALL_MAX && activeSyscalls[p->syscall]))) {
             bpfRawSysExitLink[i] = bpf_program__attach_raw_tracepoint(bpfRawSysExit[i], "sys_exit");
             if (libbpf_get_error(bpfRawSysExitLink[i])) {
                 logMessage("Cannot link\n");
@@ -1124,8 +1136,10 @@ bool linkOtherTPprogs(const ebpfTelemetryObject *obj,
                 strcmp(prevTP, curTP) != 0)) {
             alreadyAttached = false;
         }
-        if ((prevProg == NULL || !alreadyAttached) && (p->pseudoSyscall == EBPF_GENERIC_SYSCALL ||
-                activeSyscalls[p->pseudoSyscall])) {
+        if ((prevProg == NULL || !alreadyAttached) &&
+                (p->pseudoSyscall == EBPF_GENERIC_SYSCALL ||
+                 (p->pseudoSyscall <= SYSCALL_MAX &&
+                  activeSyscalls[p->pseudoSyscall]))) {
             bpfOtherTpLink[i] = bpf_program__attach_tracepoint(bpfOtherTp[i], p->family, p->tracepoint);
             if (libbpf_get_error(bpfOtherTpLink[i])) {
                 logMessage("Cannot link\n");
@@ -1616,4 +1630,3 @@ int telemetryStart(
 
     return E_EBPF_SUCCESS;
 }
-

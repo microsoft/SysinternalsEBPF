@@ -41,9 +41,11 @@
 #define PATH_MAX        4096        // Missing def
 #endif
 
+#ifndef EBPF_CO_RE
 #include <stdint.h>
+#endif
 #include <bpf_helpers.h>
-#include <asm/unistd_64.h>
+#include <asm/unistd.h>
 #include <sysinternalsEBPFshared.h>
 
 // debug tracing can be found using:
@@ -62,7 +64,65 @@
 #define true 1
 #define false 0
 
-// x64 syscall macros
+// Architecture-dependent syscall pt_regs access macros.
+//
+// On arm64 the UAPI header (asm/ptrace.h) only exposes struct user_pt_regs
+// (regs[31], sp, pc, pstate) — there is no UAPI struct pt_regs.  The kernel-
+// internal struct pt_regs starts with user_pt_regs followed by orig_x0
+// (the preserved first syscall argument, because the kernel overwrites
+// regs[0] with the return value).
+//
+// CO-RE path   – define a pt_regs___arm64 "flavor" struct with
+//                __attribute__((preserve_access_index)) so CO-RE relocations
+//                resolve orig_x0 against the target kernel's real pt_regs.
+// Non-CO-RE    – define struct pt_regs ourselves (arm64 UAPI omits it) so
+//                the macros compile.  Layout must match the kernel.
+
+#if defined(__TARGET_ARCH_arm64)
+
+#ifdef EBPF_CO_RE
+// CO-RE flavor type matching the kernel's struct pt_regs on arm64.
+// The triple-underscore suffix is the libbpf CO-RE naming convention.
+struct pt_regs___arm64 {
+    unsigned long regs[31];
+    unsigned long sp;
+    unsigned long pc;
+    unsigned long pstate;
+    unsigned long orig_x0;
+} __attribute__((preserve_access_index));
+
+#define SYSCALL_PT_REGS_PARM1(x) (((const struct pt_regs___arm64 *)(x))->orig_x0)
+#define SYSCALL_PT_REGS_PARM2(x) (((const struct pt_regs___arm64 *)(x))->regs[1])
+#define SYSCALL_PT_REGS_PARM3(x) (((const struct pt_regs___arm64 *)(x))->regs[2])
+#define SYSCALL_PT_REGS_PARM4(x) (((const struct pt_regs___arm64 *)(x))->regs[3])
+#define SYSCALL_PT_REGS_PARM5(x) (((const struct pt_regs___arm64 *)(x))->regs[4])
+#define SYSCALL_PT_REGS_PARM6(x) (((const struct pt_regs___arm64 *)(x))->regs[5])
+#define SYSCALL_PT_REGS_RC(x)    (((const struct pt_regs___arm64 *)(x))->regs[0])
+
+#else /* non-CO-RE arm64 */
+
+// arm64 UAPI only exposes struct user_pt_regs.  Define the kernel-internal
+// struct pt_regs layout so the macros below can access orig_x0.
+struct pt_regs {
+    __u64 regs[31];
+    __u64 sp;
+    __u64 pc;
+    __u64 pstate;
+    __u64 orig_x0;
+};
+
+#define SYSCALL_PT_REGS_PARM1(x) ((x)->orig_x0)
+#define SYSCALL_PT_REGS_PARM2(x) ((x)->regs[1])
+#define SYSCALL_PT_REGS_PARM3(x) ((x)->regs[2])
+#define SYSCALL_PT_REGS_PARM4(x) ((x)->regs[3])
+#define SYSCALL_PT_REGS_PARM5(x) ((x)->regs[4])
+#define SYSCALL_PT_REGS_PARM6(x) ((x)->regs[5])
+#define SYSCALL_PT_REGS_RC(x)    ((x)->regs[0])
+
+#endif /* EBPF_CO_RE */
+
+#else /* x86_64 */
+
 #ifdef EBPF_CO_RE
 #define SYSCALL_PT_REGS_PARM1(x) ((x)->di)
 #define SYSCALL_PT_REGS_PARM2(x) ((x)->si)
@@ -77,6 +137,8 @@
 #define SYSCALL_PT_REGS_PARM4(x) ((x)->r10)
 #define SYSCALL_PT_REGS_PARM5(x) ((x)->r8)
 #define SYSCALL_PT_REGS_PARM6(x) ((x)->r9)
+
+#endif /* __TARGET_ARCH_arm64 */
 
 #define CMDLINE_MAX_LEN 16384 // must be power of 2
 #define MAX_FDS 65535
@@ -105,18 +167,18 @@ struct bpf_our_raw_tracepoint_args {
 // arguments a syscall expects; attempts to do so will cause the verifier
 // to reject it.
 struct tracepoint__syscalls__sys_enter {
-    __uint64_t pad;
-    __uint32_t __syscall_nr;
-    __uint32_t pad2;
-    __uint64_t a[6];
+    __u64 pad;
+    __u32 __syscall_nr;
+    __u32 pad2;
+    __u64 a[6];
 };
 
 
 // all sys_exit arguments are the same for traditional tracepoints.
 struct tracepoint__syscalls__sys_exit {
-    __uint64_t pad;
-    __uint32_t __syscall_nr;
-    __uint32_t pad2;
+    __u64 pad;
+    __u32 __syscall_nr;
+    __u32 pad2;
     long ret;
 };
 

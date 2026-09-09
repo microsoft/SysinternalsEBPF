@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <sys/utsname.h>
 #include "libsysinternalsEBPF.h"
 
 #define SYSINTERNALSEBPF_DIR        "/opt/sysinternalsEBPF"
@@ -56,6 +57,7 @@
 #define MEM_DUMP_OBJ                "sysinternalsEBPFmemDump.o"
 #define RAW_SOCK_OBJ                "sysinternalsEBPFrawSock.o"
 #define DEB_x86_64                  "/x86_64-linux-gnu"
+#define DEB_aarch64                 "/aarch64-linux-gnu"
 #define LIB_SYM_LNK                 "/lib"
 #define LIB64_SYM_LNK               "/lib64"
 
@@ -184,6 +186,15 @@ char* getLibInstallPath()
 {
     char libPath[PATH_MAX] = {0};
     char fullPath[PATH_MAX] = {0};
+    struct utsname uts;
+    const char *deb_multiarch = DEB_x86_64;
+
+    // Detect architecture at runtime
+    if (uname(&uts) == 0) {
+        if (strncmp(uts.machine, "aarch64", 7) == 0) {
+            deb_multiarch = DEB_aarch64;
+        }
+    }
 
     fullPath[0]='/';
 
@@ -201,8 +212,8 @@ char* getLibInstallPath()
     }
     else
     {
-        // check if debian based
-        strcat(libPath, DEB_x86_64);
+        // check if debian based (try arch-appropriate multiarch dir)
+        strcat(libPath, deb_multiarch);
         strcat(fullPath, libPath);
 
         if (!dirExists(fullPath))

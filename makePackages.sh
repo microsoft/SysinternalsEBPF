@@ -31,7 +31,7 @@
 
 
 if [ "$5" = "" ]; then
-    echo "Usage: $0 <SourceDir> <BinaryDir> <package name> <package version> <package release> <PackageType>"
+    echo "Usage: $0 <SourceDir> <BinaryDir> <package name> <package version> <package release> <PackageType> [arch]"
     exit 1
 fi
 
@@ -42,8 +42,18 @@ PACKAGE_NAME=$3
 PACKAGE_VER=$4
 PACKAGE_REL=$5
 PACKAGE_TYPE=$6
+PKG_ARCH=${7:-$(dpkg --print-architecture 2>/dev/null || uname -m)}
 
-DEB_PACKAGE_NAME="${PACKAGE_NAME}_${PACKAGE_VER}_amd64"
+# Map architecture names for deb/rpm
+case "$PKG_ARCH" in
+    aarch64) DEB_ARCH="arm64"; RPM_ARCH="aarch64" ;;
+    arm64)   DEB_ARCH="arm64"; RPM_ARCH="aarch64" ;;
+    x86_64)  DEB_ARCH="amd64"; RPM_ARCH="x86_64" ;;
+    amd64)   DEB_ARCH="amd64"; RPM_ARCH="x86_64" ;;
+    *)       DEB_ARCH="$PKG_ARCH"; RPM_ARCH="$PKG_ARCH" ;;
+esac
+
+DEB_PACKAGE_NAME="${PACKAGE_NAME}_${PACKAGE_VER}_${DEB_ARCH}"
 RPM_PACKAGE_NAME="${PACKAGE_NAME}-${PACKAGE_VER}-${PACKAGE_REL}"
 
 if [ "$PACKAGE_TYPE" = "deb" ]; then
@@ -73,7 +83,7 @@ if [ "$PACKAGE_TYPE" = "deb" ]; then
         RET=1
     fi
 
-    exit 0;
+    exit $RET;
 fi
 
 if [ "$PACKAGE_TYPE" = "rpm" ]; then
@@ -91,9 +101,9 @@ if [ "$PACKAGE_TYPE" = "rpm" ]; then
 
     if [ "$RPMBUILD" != "" ]; then
         cd "${PROJECT_BINARY_DIR}/rpm/${RPM_PACKAGE_NAME}"
-        "$RPMBUILD" --define "_topdir `pwd`" -v -bb "SPECS/${RPM_PACKAGE_NAME}.spec"
+        "$RPMBUILD" --target "${RPM_ARCH}" --define "_topdir `pwd`" -v -bb "SPECS/${RPM_PACKAGE_NAME}.spec"
         RET=$?
-        cp RPMS/x86_64/*.rpm ..
+        cp RPMS/${RPM_ARCH}/*.rpm ..
     else
         echo "No rpmbuild found"
         RET=1

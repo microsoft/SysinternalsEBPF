@@ -38,7 +38,10 @@
 #include <sys/stat.h>
 
 
-#define SYSCALL_MAX 335
+#ifndef SYSCALL_ARRAY_SIZE
+#define SYSCALL_ARRAY_SIZE 512
+#endif
+#define SYSCALL_MAX (SYSCALL_ARRAY_SIZE - 1)
 #define EBPF_GENERIC_SYSCALL 0xFFFF
 
 // error codes

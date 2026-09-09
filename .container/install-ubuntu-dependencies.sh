@@ -30,7 +30,6 @@ sudo apt-get install -y --no-install-recommends \
         libxml2-dev \
         libzstd1 \
         libgtest-dev \
-        libc6-dev-i386 \
         apt-transport-https \
         dirmngr \
         googletest \
@@ -46,6 +45,11 @@ sudo apt-get install -y --no-install-recommends \
         pax \
         clang-tools \
         libssl-dev
+
+# libc6-dev-i386 is only available/needed on x86_64
+if [ "$(uname -m)" = "x86_64" ]; then
+    sudo apt-get install -y --no-install-recommends libc6-dev-i386
+fi
 
 sudo wget https://raw.githubusercontent.com/torvalds/linux/master/include/uapi/linux/openat2.h -O /usr/include/linux/openat2.h
 
