@@ -41,29 +41,7 @@ cmake ..
 make
 ```
 
-## Filesystem safety regressions
-
-After installing the build prerequisites, run from the repository root:
-
-```
-cmake -S . -B build -DBUILD_TESTING=ON
-cmake --build build --parallel 2
-ctest --test-dir build --output-on-failure
-```
-
-Both tests run without root or eBPF privileges and use disposable, randomly
-named directories. Expected output is two passing tests. Intentional failure
-cases print diagnostics; use `ctest --test-dir build -V` to see them.
-`installer_file_safety` checks normal creation, non-forced preservation,
-forced replacement without truncating the old inode, existing/dangling
-symlinks, deterministic symlink insertion races, non-regular files, partial
-and interrupted writes, and write/chmod/close failures. Sentinel contents
-and permissions must remain unchanged.
-`discovery_directory_safety` checks unique directory names, the actual
-basename used in dentry discovery, mode 0700, descriptor-based ownership
-arguments and directory entry, cleanup on setup failure, and rejection of
-a substituted symlink. Ownership changes are stubbed, so the test does not
-give another UID access to a directory or require root.
+## Filesystem safety manual checks
 
 For an end-to-end manual check, use a disposable Linux VM with a kernel
 that requires offset autodiscovery and supports this library. Rebuild and
