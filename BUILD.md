@@ -41,30 +41,6 @@ cmake ..
 make
 ```
 
-## Filesystem safety manual checks
-
-For an end-to-end manual check, use a disposable Linux VM with a kernel
-that requires offset autodiscovery and supports this library. Rebuild and
-install the library and eBPF objects, then start a consuming application
-through its normal offset-discovery path. A BTF/CO:RE-only startup does not
-exercise this code. Trace that startup with
-`strace -f -e trace=mkdir,openat,fchmod,fchown,fchdir,rmdir`.
-Expect a fresh `/tmp/sysinternalsEBPFtmp.XXXXXX` name (with a generated
-suffix), mode 0700, ownership 12345:67890 set through its descriptor, a
-successful discovery, cwd restoration, and removal of the temporary
-directory. Repeat startup to check that a new name is used and no directory
-is left behind. Only in that disposable VM, pre-create the old
-`/tmp/sysinternalsEBPFtmp` name as a symlink to a disposable sentinel
-directory and repeat: its ownership and permissions must remain unchanged.
-Do not run this setup against shared or production `/tmp` paths.
-
-`dropFile` requires trusted parent directories; it does not secure an
-attacker-controlled directory hierarchy. Non-forced installs now reject
-leaf symlinks, while forced installs replace the link itself without
-modifying its target. Consumers must rebuild/deploy the corrected shared
-library (and rebuild statically linked or embedded copies). Updating an
-application alone does not update its installed SysinternalsEBPF dependency.
-
 ## Cross-building for aarch64 (on x86_64)
 
 ### Prerequisites
