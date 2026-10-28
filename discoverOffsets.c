@@ -71,6 +71,7 @@
 #define PDEATH_SIG SIGUSR1
 #define TMPDIR1 "/tmp/"
 #define TMPDIR2 "sysinternalsEBPFtmp"
+#define TMPDIR_TEMPLATE TMPDIR1 TMPDIR2 ".XXXXXX"
 #define SEM_NAME "/sysinternalsEBPF-getoffsets"
 
 #define MIN_SAMPLE_SIZE 16
@@ -103,7 +104,7 @@ static struct   bpf_link *bpfConsumeSkbLink = NULL;
 bool            stopping                    = false;
 pid_t           thisPid                     = 0;
 
-const char      tmpdir[]                    = TMPDIR1 TMPDIR2;
+static char     tmpdir[]                    = TMPDIR_TEMPLATE;
 const char      *sysinternalsEBPFtmp        = tmpdir + strlen(TMPDIR1);
 time_t          creation_time               = 0;
 
@@ -1773,6 +1774,34 @@ int getOffsets(
 
 //--------------------------------------------------------------------
 //
+// createDiscoveryDirectory
+//
+// Create the directory used as the inode and dentry sample.
+//
+//--------------------------------------------------------------------
+static int createDiscoveryDirectory(void)
+{
+    strcpy(tmpdir, TMPDIR_TEMPLATE);
+    if (mkdtemp(tmpdir) == NULL) {
+        logMessage("ERROR: Failed to create temporary directory: %s\n", strerror(errno));
+        return -1;
+    }
+
+    int fd = open(tmpdir, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd >= 0 && fchmod(fd, TEMPDIR_MODE) == 0 &&
+            fchown(fd, TEMPUID, TEMPGID) == 0)
+        return fd;
+
+    logMessage("ERROR: Failed to prepare temporary directory: %s\n", strerror(errno));
+    if (fd >= 0)
+        close(fd);
+    if (rmdir(tmpdir) < 0)
+        logMessage("ERROR: Failed to remove temporary directory: %s\n", strerror(errno));
+    return -1;
+}
+
+//--------------------------------------------------------------------
+//
 // discoverOffsets
 //
 // Discover the offsets for the required struct members.
@@ -1799,7 +1828,8 @@ int discoverOffsets(
     struct utsname unameStruct = { 0 };
     struct perf_buffer *pb;
     int ret;
-    char cwd[PATH_MAX];
+    int cwdFd = -1;
+    int tmpFd = -1;
 
     memset(memDumps, 0, sizeof(memDumps));
     memset(offsets, 0xFF, sizeof(*offsets));
@@ -1894,20 +1924,23 @@ int discoverOffsets(
     logMessage("Discovering offsets...");
 
     // move to a temporary directory for use in later checks
-    if (getcwd(cwd, sizeof(cwd)) == NULL) {
-        snprintf(cwd, sizeof(cwd), "/tmp/");
-    }
-    mkdir(tmpdir, TEMPDIR_MODE);
-    if(chdir(tmpdir) == -1 )
-    {
-        logMessage("ERROR: Failed to change directories: %s\n", tmpdir);
-        return E_DISC_CATASTROPHIC;
+    cwdFd = open(".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (cwdFd < 0) {
+        logMessage("ERROR: Failed to save current directory: %s\n", strerror(errno));
+        ret = E_DISC_CATASTROPHIC;
+        goto cleanup;
     }
 
-    if(chown(tmpdir, TEMPUID, TEMPGID) == -1)
-    {
-        logMessage("ERROR: Failed to change ownership: %s\n", tmpdir);
-        return E_DISC_CATASTROPHIC;
+    tmpFd = createDiscoveryDirectory();
+    if (tmpFd < 0) {
+        ret = E_DISC_CATASTROPHIC;
+        goto cleanup;
+    }
+
+    if (fchdir(tmpFd) < 0) {
+        logMessage("ERROR: Failed to enter temporary directory: %s\n", strerror(errno));
+        ret = E_DISC_CATASTROPHIC;
+        goto cleanup;
     }
 
     creation_time = time(NULL);
@@ -1918,14 +1951,16 @@ int discoverOffsets(
     // set PDEATH signal for later use as a canary
     if(prctl(PR_SET_PDEATHSIG, PDEATH_SIG) < 0) {
         logMessage("prctl failed\n");
-        return E_DISC_NOPDEATH;
+        ret = E_DISC_NOPDEATH;
+        goto cleanup;
     }
 
     triggerTp();
 
     if (!getMem(task, pb)) {
         logMessage("Did not get task_struct\n");
-        return E_DISC_NOTASK;
+        ret = E_DISC_NOTASK;
+        goto cleanup;
     }
 
     ret = getOffsets(offsets, argv, pb, procStartTime);
@@ -1936,16 +1971,25 @@ int discoverOffsets(
         logMessage("\nGet Offsets Error: %s\n", eBPFstrerror(ret));
     }
 
+cleanup:
+    perf_buffer__free(pb);
     memDumpCloseAll();
 
-    if(chdir(cwd) == -1)
-    {
-        logMessage("ERROR: Failed to change directories: %s\n", cwd);
-        return E_DISC_CATASTROPHIC;
+    if (cwdFd >= 0) {
+        if (fchdir(cwdFd) < 0) {
+            logMessage("ERROR: Failed to restore current directory: %s\n", strerror(errno));
+            ret = E_DISC_CATASTROPHIC;
+        }
+        close(cwdFd);
     }
 
-    rmdir(tmpdir);
+    if (tmpFd >= 0) {
+        close(tmpFd);
+        if (rmdir(tmpdir) < 0) {
+            logMessage("ERROR: Failed to remove temporary directory: %s\n", strerror(errno));
+            ret = E_DISC_CATASTROPHIC;
+        }
+    }
 
     return ret;
 }
-

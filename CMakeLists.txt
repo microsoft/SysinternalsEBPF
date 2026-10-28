@@ -516,3 +516,26 @@ foreach(EBPF_PROG IN LISTS EBPF_PROGS)
     # add ebpf programs to clean
     set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${EBPF_PROG}.o)
 endforeach(EBPF_PROG)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(installer_test tests/installer_test.c)
+    add_test(NAME installer_file_safety COMMAND installer_test)
+
+    add_executable(discoverOffsets_test tests/discoverOffsets_test.c)
+    add_dependencies(discoverOffsets_test sysinternalsEBPF)
+    target_include_directories(discoverOffsets_test PRIVATE
+        "${CMAKE_SOURCE_DIR}"
+        "${PROJECT_BINARY_DIR}"
+        "${libbpf_SOURCE_DIR}/src"
+        "${libbpf_SOURCE_DIR}/include"
+        "${libbpf_SOURCE_DIR}/include/uapi"
+    )
+    # Keep only the filesystem helper under test; no eBPF privileges are needed.
+    target_compile_options(discoverOffsets_test PRIVATE -ffunction-sections -fdata-sections)
+    set_target_properties(discoverOffsets_test PROPERTIES LINK_FLAGS "-Wl,--gc-sections")
+    add_test(NAME discovery_directory_safety COMMAND discoverOffsets_test)
+
+    target_compile_options(installer_test PRIVATE -UNDEBUG)
+    target_compile_options(discoverOffsets_test PRIVATE -UNDEBUG)
+endif()
