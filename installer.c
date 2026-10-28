@@ -38,6 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
+#include <errno.h>
 
 
 //--------------------------------------------------------------------
@@ -138,7 +139,8 @@ bool createDir(const char *dir, mode_t perms)
 // dropFile
 //
 // Create specified file with specified permissions, and write the
-// data between start and end to it.
+// data between start and end to it. Parent directories must be trusted.
+// Without force, retain existing regular files but reject symlinks.
 //
 //--------------------------------------------------------------------
 bool dropFile(const char *filepath, const char *start,
@@ -154,14 +156,29 @@ bool dropFile(const char *filepath, const char *start,
     ssize_t writeRet;
     size_t size = end - start;
 
-    if (fileExists(filepath) && !force) {
-        chmod(filepath, perms);
-        return true;
+    if (!force) {
+        fd = open(filepath, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+        if (fd >= 0) {
+            struct stat st;
+            bool ok = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
+                fchmod(fd, perms) == 0;
+            if (close(fd) < 0)
+                ok = false;
+            if (!ok)
+                fprintf(stderr, "Cannot set permissions on %s\n", filepath);
+            return ok;
+        }
+        if (errno != ENOENT) {
+            fprintf(stderr, "Cannot open %s: %s\n", filepath, strerror(errno));
+            return false;
+        }
+    } else if (unlink(filepath) < 0 && errno != ENOENT) {
+        fprintf(stderr, "Cannot remove %s: %s\n", filepath, strerror(errno));
+        return false;
     }
 
-    unlink(filepath);
-
-    fd = creat(filepath, perms);
+    // Do not follow a symlink inserted after unlink or the existence check.
+    fd = open(filepath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, perms);
     if (fd < 0) {
         fprintf(stderr, "Cannot write %s\n", filepath);
         return false;
@@ -169,15 +186,20 @@ bool dropFile(const char *filepath, const char *start,
 
     while (written < size) {
         writeRet = write(fd, start + written, size - written);
-        if (writeRet < 0) {
+        if (writeRet < 0 && errno == EINTR)
+            continue;
+        if (writeRet <= 0) {
+            fprintf(stderr, "Cannot write %s: %s\n", filepath,
+                writeRet < 0 ? strerror(errno) : "no write progress");
             close(fd);
-            return 1;
+            return false;
         }
         written += writeRet;
     }
-    close(fd);
+    if (close(fd) < 0) {
+        fprintf(stderr, "Cannot close %s: %s\n", filepath, strerror(errno));
+        return false;
+    }
 
     return true;
 }
-
-
